@@ -1,0 +1,37 @@
+baseURL = "https://mwilczynski.dev/"
+languageCode = "en-us"
+title = "Linux Kernel Blog"
+theme = "PaperMod"
+
+[params]
+  author = "Michał Wilczyński"
+  description = "A blog about the Linux kernel and other low level things."
+  ShowReadingTime = true
+
+  [params.profileMode]
+    enabled = false
+
+  [params.homeInfoParams]
+    Title = "Hi, I'm Michał Wilczyński 👋"
+    Content = """
+A Linux Kernel Engineer who enjoys poking at hardware until it works.
+By day, I wrangle the kernel for Tizen smart devices at Samsung.
+Before that, I was at Intel taming 100G networking drivers.
+
+This blog is my field notebook for low level adventures in drivers,
+performance tuning, eBPF, and bringing safe Rust to the kernel.
+"""
+
+  [[params.socialIcons]]
+    name = "linkedin"
+    url = "https://www.linkedin.com/in/michal-wilczynski"
+
+  [params.ShowCodeCopyButtons]
+    enabled = true
+
+[markup]
+  [markup.highlight]
+    noClasses = false
+    codeFences = true
+    guessSyntax = true
+    lineNos = false

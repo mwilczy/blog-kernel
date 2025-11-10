@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Linux Kernel Blog</title>
+    <link>http://localhost:1313/</link>
+    <description>Recent content on Linux Kernel Blog</description>
+    <generator>Hugo -- 0.149.0</generator>
+    <language>en-us</language>
+    <lastBuildDate>Sun, 09 Nov 2025 00:00:00 +0000</lastBuildDate>
+    <atom:link href="http://localhost:1313/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Bringing Rust to the Linux PWM Subsystem</title>
+      <link>http://localhost:1313/posts/bringing-rust-to-the-pwm-subsystem/</link>
+      <pubDate>Sun, 09 Nov 2025 00:00:00 +0000</pubDate>
+      <guid>http://localhost:1313/posts/bringing-rust-to-the-pwm-subsystem/</guid>
+      <description>A journey into creating safe Rust abstractions for the kernel&amp;#39;s PWM subsystem, demonstrated with a real-world fan controller driver for the TH1520 SoC.</description>
+    </item>
+  </channel>
+</rss>
