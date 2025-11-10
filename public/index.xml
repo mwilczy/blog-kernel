@@ -13,7 +13,7 @@
       <link>http://localhost:1313/posts/bringing-rust-to-the-pwm-subsystem/</link>
       <pubDate>Sun, 09 Nov 2025 00:00:00 +0000</pubDate>
       <guid>http://localhost:1313/posts/bringing-rust-to-the-pwm-subsystem/</guid>
-      <description>A journey into creating safe Rust abstractions for the kernel&amp;#39;s PWM subsystem, demonstrated with a real-world fan controller driver for the TH1520 SoC.</description>
+      <description>A journey into creating safe Rust abstractions for the kernel&amp;#39;s PWM subsystem, demonstrated with a real world fan controller driver for the RISC-V TH1520 SoC.</description>
     </item>
   </channel>
 </rss>

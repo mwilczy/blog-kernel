@@ -27,7 +27,7 @@ The core of this work is a new `rust/kernel/pwm.rs` module. It provides abstract
 
 One of the biggest risks in kernel development is leaking resources. To prevent this, the API uses a `pwm::Registration` RAII guard. This guarantees that every call to `pwmchip_add` is automatically paired with a `pwmchip_remove` when the object goes out of scope, completely eliminating a common class of bugs.
 
-## 2. A Modern and Safe API
+### 2. A Modern and Safe API
 
 The main interface for a driver is the `PwmOps` trait. I based it on the modern "waveform" API, which is the current best practice for the subsystem. The best part? It moves all the `unsafe` logic into the abstraction layer. This means someone writing a new driver can implement the trait using **100% safe Rust**.
 
@@ -71,7 +71,7 @@ Before we look at the code, we need to talk about `Pin`. In kernel drivers, we o
 
 If we just moved such a struct, those internal pointers would become invalid and point to garbage.
 
-`Pin` is a mechanism in Rust that "pins" data to its location in memory. It's a guarantee to the compiler that the data's address will not change. This is why you'll see `#[pin_data(PinnedDrop)]` and `#[pin]` in the struct, and why our `probe` function returns `impl PinInit` - it's all part of this safety-first "pinning" initialization.
+`Pin` is a mechanism in Rust that "pins" data to its location in memory. It's a guarantee to the compiler that the data's address will not change. This is why you'll see `#[pin_data(PinnedDrop)]` and `#[pin]` in the struct, and why our `probe` function returns `impl PinInit` - it's all part of this safety first "pinning" initialization.
 
 {{< highlight rust "linenos=true,hl_lines=3-8" >}}
 /// The driver's private data struct. It holds all necessary devres managed resources.
@@ -160,7 +160,7 @@ Let's break this down:
     Here, `pwm::Chip::new` does *all of that* for us. It creates the C struct, links our Rust data, and automatically sets up the FFI bridge so the kernel can call our safe `PwmOps` trait methods.
 * **Line 39:** We call `pwm::Registration::register`. This single line handles registering the `pwm_chip` with the kernel. The returned object is an RAII guard that, as mentioned before, ensures `pwmchip_remove` is called on cleanup.
 
-That's it. All the complex C-side boilerplate of setting up the `pwm_chip` struct, managing memory, and hooking up ops is handled by the abstraction layer.
+That's it. All the complex C side boilerplate of setting up the `pwm_chip` struct, managing memory, and hooking up ops is handled by the abstraction layer.
 
 ### 3. The `PwmOps` Trait: The Safe Hardware Logic
 
