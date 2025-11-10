@@ -1,7 +1,7 @@
 +++
 title = "Bringing Rust to the Linux PWM Subsystem"
 date = "2025-11-09"
-description = "A journey into creating safe Rust abstractions for the kernel's PWM subsystem, demonstrated with a real-world fan controller driver for the TH1520 SoC."
+description = "A journey into creating safe Rust abstractions for the kernel's PWM subsystem, demonstrated with a real world fan controller driver for the RISC-V TH1520 SoC."
 draft = false
 [taxonomies]
   tags = ["Linux Kernel", "Rust", "PWM", "Embedded"]
@@ -12,6 +12,8 @@ draft = false
 For the past few months, I've been on a mission to introduce a basic set of safe **Rust abstractions** to the Linux kernel's PWM subsystem. If you've ever controlled the brightness of an LED or the speed of a fan, you've used PWM. It's a fundamental part of how software interacts with hardware.
 
 The primary goal was to see if I could build an API that lets developers write PWM drivers in 100% safe Rust, gaining all the benefits of the language's memory safety and powerful type system. As a practical demonstration, I also wrote a functional PWM driver for the **T-HEAD TH1520 SoC**, which is found on the popular Sipeed Lichee Pi 4A board.
+
+> **A quick note:** This work, including the abstractions and the TH1520 driver, is currently in `linux-next` and is queued for merging in the upcoming **kernel 6.19** merge window!
 
 This wasn't just a theoretical exercise; it had a very real goal: getting the temperature controlled CPU fan working on my board.
 
@@ -60,8 +62,6 @@ You can follow the whole journey and see the [final v16 patch series on the kern
 ## Diving into the Driver: How It Works
 
 So how does this all come together in a real driver? Let's look at the TH1520 driver to see how these new abstractions make writing a driver cleaner and safer.
-
-> **A quick note:** This work, including the abstractions and the TH1520 driver, is currently in `linux-next` and is queued for merging in the upcoming **kernel 6.19** merge window!
 
 ### 1. The Driver's State: `Th1520PwmDriverData`
 
