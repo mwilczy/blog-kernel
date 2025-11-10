@@ -8,6 +8,8 @@ theme = "PaperMod"
   description = "A blog about the Linux kernel and other low level things."
   ShowReadingTime = true
 
+  comments = true
+
   [params.profileMode]
     enabled = false
 
