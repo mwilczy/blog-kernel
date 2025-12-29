@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="noindex, nofollow">
+<title>Igniting the GPU: From Kernel Plumbing to 3D Rendering on RISC-V | Linux Kernel Blog</title>
+<meta name="keywords" content="">
+<meta name="description" content="How I enabled the PowerVR GPU on the TH1520 SoC by writing the missing kernel drivers.">
+<meta name="author" content="Michał Wilczyński">
+<link rel="canonical" href="http://localhost:1313/posts/riscv-gpu-zink/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.8fe10233a706bc87f2e08b3cf97b8bd4c0a80f10675a143675d59212121037c0.css" integrity="sha256-j&#43;ECM6cGvIfy4Is8&#43;XuL1MCoDxBnWhQ2ddWSEhIQN8A=" rel="preload stylesheet" as="style">
+<link rel="icon" href="http://localhost:1313/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313/favicon-32x32.png">
+<link rel="apple-touch-icon" href="http://localhost:1313/apple-touch-icon.png">
+<link rel="mask-icon" href="http://localhost:1313/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="http://localhost:1313/posts/riscv-gpu-zink/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-track {
+                background: 0 0;
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-thumb {
+                border-color: var(--theme);
+            }
+        }
+
+    </style>
+</noscript>
+</head>
+
+<body class="" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+    } else if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark');
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="http://localhost:1313/" accesskey="h" title="Linux Kernel Blog (Alt + H)">Linux Kernel Blog</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    
+    <h1 class="post-title entry-hint-parent">
+      Igniting the GPU: From Kernel Plumbing to 3D Rendering on RISC-V
+    </h1>
+    <div class="post-description">
+      How I enabled the PowerVR GPU on the TH1520 SoC by writing the missing kernel drivers.
+    </div>
+    <div class="post-meta"><span title='2025-12-28 00:00:00 +0000 UTC'>December 28, 2025</span>&nbsp;·&nbsp;11 min&nbsp;·&nbsp;Michał Wilczyński
+
+</div>
+  </header> 
+  <div class="post-content"><h2 id="introduction-enabling-the-hardware">Introduction: Enabling the Hardware<a hidden class="anchor" aria-hidden="true" href="#introduction-enabling-the-hardware">#</a></h2>
+<p>For years, PowerVR GPUs ubiquitous in the embedded world relied entirely on out of tree vendor drivers (often named <code>pvrsrvkm</code>). While source code was provided in Board Support Packages, these drivers were never accepted into the mainline kernel due to their non standard architecture.</p>
+<p>That changed when Imagination Technologies <a href="https://lists.freedesktop.org/archives/mesa-dev/2022-March/225699.html">announced their commitment</a> to an upstream, open source driver. The resulting <code>drm/imagination</code> driver has been upstream for some time, but it wasn&rsquo;t usable on RISC-V platforms like the T-HEAD TH1520 (used in the Lichee Pi 4A).</p>
+<p><strong>This marks a significant milestone: with the enablement work described below, the TH1520 becomes the first RISC-V SoC to feature fully mainline, hardware accelerated 3D graphics support.</strong></p>
+<p>This effort has followed a long road of development, generating significant community interest along the way from the <a href="https://www.phoronix.com/news/RISC-V-PowerVR-Driver-Support">initial driver support discussions</a> to the <a href="https://www.phoronix.com/news/T-HEAD-GPU-Power-Sequence">power sequencing challenges</a>, and finally culminating in the <a href="https://www.phoronix.com/news/Linux-6.18-PowerVR-RISC-V">official upstream merge in Linux 6.18</a>.</p>
+<p>While the GPU driver itself is generic, the hardware surrounding the GPU on this SoC specifically the power, clock, and reset controllers required significant enablement work before the GPU could actually be probed.</p>
+<p>This post details the architectural &ldquo;plumbing&rdquo; required to bring up the full graphics stack on the TH1520. This involved implementing the necessary platform drivers to handle the SoC&rsquo;s power sequencing, enabling the mainline <code>drm/imagination</code> driver for RISC-V, and validating the stack with a modern, Vulkan based userspace.</p>
+<hr>
+<h2 id="part-1-the-dependency-chain">Part 1: The Dependency Chain<a hidden class="anchor" aria-hidden="true" href="#part-1-the-dependency-chain">#</a></h2>
+<p>Enabling the GPU wasn&rsquo;t just a matter of changing a Kconfig entry. The TH1520 GPU subsystem is gated behind a chain of hardware dependencies that had no existing Linux drivers.</p>
+<p>To reach the point where I could submit the final patch <a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=6b53cf48d9339c75fa51927b0a67d8a6751066bd">enabling the PowerVR driver for RISC-V</a>, I first had to implement and upstream the drivers for these underlying subsystems.</p>
+<p>The hierarchy looks like this, from the bottom up:</p>
+<ol>
+<li><strong>Mailbox (<a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=5d4d263e1c6b6b18acb4d67fd3b9af71b7404924"><code>mailbox-th1520</code></a>)</strong>: The SoC uses a safety coprocessor (E902) to manage power. The first step was writing a mailbox driver to establish a physical communication link between the main CPUs and this coprocessor.</li>
+<li><strong>Firmware Protocol (<a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=e4b3cbd840e565484d0ad8d260d27c057466ed17"><code>thead-aon-protocol</code></a>)</strong>: On top of the mailbox, I implemented the AON (Always-On) firmware protocol. This driver handles the specific message format required to request power state changes from the coprocessor.</li>
+<li><strong>Power Domains (<a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=dc9a897dbb03dfd46c3bd2ce69e42e378bd12ca0"><code>pmdomain-thead</code></a>)</strong>: With the protocol active, I could expose the GPU&rsquo;s power rail as a standard Linux Generic Power Domain (GenPD). This allows the kernel to manage the GPU&rsquo;s power state generically.</li>
+<li><strong>Resets and Clocks</strong>: Finally, I extended the clock driver (<a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=50d4b157fa96bfeb4f383d7dad80f8bdef0d1d2a"><code>clk-th1520-vo</code></a>) and implemented a new reset controller (<a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=4a65326311aba694faafcef9e3c0ef7ae1b722e6"><code>reset-th1520</code></a>) to handle the specific requirements of the Video Output (VO) subsystem where the GPU resides.</li>
+</ol>
+<h3 id="the-power-sequencer-a-novel-application">The Power Sequencer: A Novel Application<a hidden class="anchor" aria-hidden="true" href="#the-power-sequencer-a-novel-application">#</a></h3>
+<p>With the platform drivers in place, one integration challenge remained. The TH1520 requires a specific, time sensitive sequence to power up the GPU: enable the power domain, wait for voltage stabilization, and then de-assert resets in a specific order.</p>
+<p>Historically, power sequencing in the kernel was mostly confined to the MMC/Bluetooth subsystems (for toggling GPIOs on WiFi chips). However, the kernel recently introduced a generic <strong>Power Sequencing (<code>pwrseq</code>)</strong> subsystem (authored by Bartosz Golaszewski) to standardize this problem.</p>
+<p>During the upstream review process, <strong>Ulf Hansson</strong> (the Power Management subsystem maintainer) suggested that the TH1520&rsquo;s GPU was the perfect candidate for this new framework. It behaves almost like an external component: it needs a dedicated &ldquo;manager&rdquo; to orchestrate its wake-up routine before the main driver can even touch it.</p>
+<p>I implemented this in <a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=d4c2d9b5b7ceed14a3a835fd969bb0699b9608d3"><code>pwrseq-thead-gpu</code></a>. The most interesting part of this driver is the <code>match</code> function, which allows the sequencer to &ldquo;adopt&rdquo; the GPU&rsquo;s resources:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="hl"><span class="lnt"> 6
+</span></span><span class="hl"><span class="lnt"> 7
+</span></span><span class="hl"><span class="lnt"> 8
+</span></span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="hl"><span class="lnt">19
+</span></span><span class="hl"><span class="lnt">20
+</span></span><span class="hl"><span class="lnt">21
+</span></span><span class="hl"><span class="lnt">22
+</span></span><span class="hl"><span class="lnt">23
+</span></span><span class="hl"><span class="lnt">24
+</span></span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">int</span> <span class="nf">pwrseq_thead_gpu_match</span><span class="p">(</span><span class="k">struct</span> <span class="n">pwrseq_device</span> <span class="o">*</span><span class="n">pwrseq</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">				  <span class="k">struct</span> <span class="n">device</span> <span class="o">*</span><span class="n">dev</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">pwrseq_thead_gpu_ctx</span> <span class="o">*</span><span class="n">ctx</span> <span class="o">=</span> <span class="nf">pwrseq_device_get_drvdata</span><span class="p">(</span><span class="n">pwrseq</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line hl"><span class="cl">	<span class="cm">/* 1. We only match the specific T-HEAD TH1520 GPU compatible */</span>
+</span></span><span class="line hl"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="nf">of_device_is_compatible</span><span class="p">(</span><span class="n">dev</span><span class="o">-&gt;</span><span class="n">of_node</span><span class="p">,</span> <span class="s">&#34;thead,th1520-gpu&#34;</span><span class="p">))</span>
+</span></span><span class="line hl"><span class="cl">		<span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cm">/*  validation omitted  */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cm">/* 2. Dynamically acquire resources FROM the consumer device node */</span>
+</span></span><span class="line"><span class="cl">	<span class="n">ctx</span><span class="o">-&gt;</span><span class="n">num_clks</span> <span class="o">=</span> <span class="nf">ARRAY_SIZE</span><span class="p">(</span><span class="n">clk_names</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="n">ctx</span><span class="o">-&gt;</span><span class="n">clks</span> <span class="o">=</span> <span class="nf">kcalloc</span><span class="p">(</span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">num_clks</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="o">*</span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">clks</span><span class="p">),</span> <span class="n">GFP_KERNEL</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">for</span> <span class="p">(</span><span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">ctx</span><span class="o">-&gt;</span><span class="n">num_clks</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="n">ctx</span><span class="o">-&gt;</span><span class="n">clks</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">id</span> <span class="o">=</span> <span class="n">clk_names</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line hl"><span class="cl">	<span class="cm">/* The sequencer grabs the &#39;core&#39; and &#39;sys&#39; clocks defined in the GPU&#39;s DT node */</span>
+</span></span><span class="line hl"><span class="cl">	<span class="n">ret</span> <span class="o">=</span> <span class="nf">clk_bulk_get</span><span class="p">(</span><span class="n">dev</span><span class="p">,</span> <span class="n">ctx</span><span class="o">-&gt;</span><span class="n">num_clks</span><span class="p">,</span> <span class="n">ctx</span><span class="o">-&gt;</span><span class="n">clks</span><span class="p">);</span>
+</span></span><span class="line hl"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">ret</span><span class="p">)</span>
+</span></span><span class="line hl"><span class="cl">		<span class="k">goto</span> <span class="n">err_free_clks</span><span class="p">;</span>
+</span></span><span class="line hl"><span class="cl">
+</span></span><span class="line hl"><span class="cl">	<span class="n">ctx</span><span class="o">-&gt;</span><span class="n">gpu_reset</span> <span class="o">=</span> <span class="nf">reset_control_get_shared</span><span class="p">(</span><span class="n">dev</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="cm">/* ... */</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></td></tr></table>
+</div>
+</div>
+<h4 id="the-integration-in-drmimagination">The Integration in <code>drm/imagination</code><a hidden class="anchor" aria-hidden="true" href="#the-integration-in-drmimagination">#</a></h4>
+<p>To make this work, I also had to introduce a small but strategic change to the generic <code>drm/imagination</code> driver (see commit <a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=e38e8391f30b41c5a24bb46dc6ef4161921e782d"><code>e38e8391f30b</code></a>).</p>
+<p>Following a suggestion from <strong>Matt Coster</strong>, I implemented a new abstraction, <code>pvr_power_sequence_ops</code>. This interface allows the driver to select its power strategy at runtime based on the device compatible string, keeping the core driver logic generic while accommodating platform specific needs.</p>
+<p>For the TH1520, the driver simply selects the <code>pwrseq</code> backend:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">static</span> <span class="k">const</span> <span class="k">struct</span> <span class="n">pvr_device_data</span> <span class="n">pvr_device_data_pwrseq</span> <span class="o">=</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">pwr_ops</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">pvr_power_sequence_ops_pwrseq</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="k">const</span> <span class="k">struct</span> <span class="n">of_device_id</span> <span class="n">dt_match</span><span class="p">[]</span> <span class="o">=</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">compatible</span> <span class="o">=</span> <span class="s">&#34;thead,th1520-gpu&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">data</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">pvr_device_data_pwrseq</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">},</span>
+</span></span><span class="line"><span class="cl">    <span class="cm">/* ... */</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span></span></span></code></pre></td></tr></table>
+</div>
+</div>
+<p>This architecture offers three major benefits:</p>
+<ol>
+<li><strong>Clean Abstraction:</strong> The GPU driver doesn&rsquo;t need to know about T-HEAD&rsquo;s specific reset order or microsecond delays. It simply calls the generic <code>pwr_ops-&gt;power_on()</code>.</li>
+<li><strong>Inversion of Control:</strong> The sequencer &ldquo;steals&rdquo; the resource handles (clocks and resets) from the GPU&rsquo;s device tree node during the match phase (lines 19-24 in the first snippet). This allows the sequencer to control resources that conceptually belong to the GPU, ensuring the correct power up order without modifying the GPU driver logic.</li>
+<li><strong>Strict Ordering:</strong> By centralizing this logic in a dedicated driver, we guarantee that the <code>clkgen</code> reset (controlled by the parent node) and the <code>gpu_core</code> reset (controlled by the consumer node) are de-asserted in the exact order required by the hardware manual.</li>
+</ol>
+<hr>
+<h2 id="part-2-the-display-pipeline-connecting-the-pixels">Part 2: The Display Pipeline (Connecting the Pixels)<a hidden class="anchor" aria-hidden="true" href="#part-2-the-display-pipeline-connecting-the-pixels">#</a></h2>
+<p>Powering up the GPU is a massive victory, but it solves only half the problem. A GPU can render beautiful 3D scenes into memory, but without a <strong>Display Controller</strong> to scan those buffers out to a screen, you&rsquo;re still looking at a black terminal.</p>
+<p>On the TH1520, the display duties are handled by a <strong>Verisilicon DC8200</strong> IP block, connected to a Synopsys DesignWare HDMI bridge.</p>
+<blockquote>
+<p><strong>Ecosystem Note:</strong> If you are following the RISC-V space, this IP might sound familiar. The <strong>StarFive JH7110</strong> (used in the VisionFive 2) uses the exact same Verisilicon DC8200 display controller.</p>
+<p>I am actually working on enabling the display stack for the JH7110 in <a href="https://lore.kernel.org/all/20251108-jh7110-clean-send-v1-0-06bf43bb76b1@samsung.com/">parallel</a>. While the IP is the same, the integration is vastly different the JH7110 has a complex circular dependency between the HDMI PHY and the clock generator that requires a complete architectural rethink. But that is a story for a future blog post.</p></blockquote>
+<h3 id="the-collaborative-puzzle">The Collaborative Puzzle<a hidden class="anchor" aria-hidden="true" href="#the-collaborative-puzzle">#</a></h3>
+<p>While I focused on the TH1520 power sequencing and GPU enablement, the display driver work here was led by <strong>Icenowy Zheng</strong>, another brilliant engineer in the RISC-V ecosystem.</p>
+<p>This is the beauty of upstream kernel development: you don&rsquo;t have to build the world alone. Icenowy has been working on a generic DRM driver for <a href="https://lore.kernel.org/all/20251224161205.1132149-1-zhengxingda@iscas.ac.cn/">Verisilicon display controllers</a>, adapting it to support the specific HDMI PHY found on the TH1520.</p>
+<p>Since these patches are currently in the review process (v4), they aren&rsquo;t in mainline yet. To build the working demo, I applied Icenowy&rsquo;s patch series on top of mainline kernel.</p>
+<p>With Icenowy&rsquo;s display driver handling the &ldquo;scan out&rdquo; and my infrastructure handling the &ldquo;power up,&rdquo; we finally had a complete pipeline: <strong>Memory -&gt; GPU Render -&gt; Memory -&gt; Display Controller -&gt; HDMI</strong>.</p>
+<h2 id="part-3-the-vulkan-only-future">Part 3: The &ldquo;Vulkan-Only&rdquo; Future<a hidden class="anchor" aria-hidden="true" href="#part-3-the-vulkan-only-future">#</a></h2>
+<p>Now that the kernel could talk to the hardware, we needed a userspace stack to render graphics.</p>
+<p>Historically, enabling a new GPU meant writing two massive drivers for Mesa: one for Vulkan and one for OpenGL. But the open-source graphics world has shifted. The <code>drm/imagination</code> driver is designed to be <strong>Vulkan-native</strong>.</p>
+<p>Instead of writing a complex, legacy OpenGL driver, we use <strong>Zink</strong>.</p>
+<h3 id="the-stack-rendering-vs-display">The Stack: Rendering vs. Display<a hidden class="anchor" aria-hidden="true" href="#the-stack-rendering-vs-display">#</a></h3>
+<p>Since the TH1520 uses a split DRM architecture, the flow isn&rsquo;t just a straight line. The GPU and Display Controller are separate devices that share data via memory (DMA-BUF).</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">      [ Application (glmark2) ]
+</span></span><span class="line"><span class="cl">                 │
+</span></span><span class="line"><span class="cl">                 ▼
+</span></span><span class="line"><span class="cl">      [    Zink (OpenGL)      ]
+</span></span><span class="line"><span class="cl">                 │
+</span></span><span class="line"><span class="cl">                 ▼
+</span></span><span class="line"><span class="cl">      [ Mesa PowerVR (Vulkan) ]
+</span></span><span class="line"><span class="cl">                 │
+</span></span><span class="line"><span class="cl">      ┌──────────┴──────────┐
+</span></span><span class="line"><span class="cl">      │     Linux Kernel    │
+</span></span><span class="line"><span class="cl">      ▼                     ▼
+</span></span><span class="line"><span class="cl">[ GPU Driver ]       [ Display Driver ]
+</span></span><span class="line"><span class="cl"> (Render Node)         (KMS/Card Node)
+</span></span><span class="line"><span class="cl">      │                     │
+</span></span><span class="line"><span class="cl">      ▼        DMA-BUF      ▼
+</span></span><span class="line"><span class="cl"> [ GPU HW ] ──(Memory)──▶ [ Display HW ] ──▶ HDMI</span></span></code></pre></div>
+<p>This separation is why the kernel plumbing in Part 1 (GPU) and Part 2 (Display) had to be done independently before they could work together.</p>
+<h3 id="building-the-stack-reproduction-guide">Building the Stack (Reproduction Guide)<a hidden class="anchor" aria-hidden="true" href="#building-the-stack-reproduction-guide">#</a></h3>
+<p>For those who want to reproduce this on their own Lichee Pi 4A, exact version matching is critical.</p>
+<p><strong>1. The Kernel</strong>
+I used Linux 6.19 as the base, with unmerged Display Controller patches applied on top. You can find the exact tree here:</p>
+<ul>
+<li><strong>Kernel Branch:</strong> <a href="https://github.com/mwilczy/linux/tree/blog_code"><code>github.com/mwilczy/linux/tree/blog_code</code></a></li>
+</ul>
+<p><strong>2. Mesa (Userspace)</strong>
+I used a fork of Icenowy Zheng’s work, which includes the necessary glue to make Zink play nicely with this specific hardware combination.</p>
+<ul>
+<li><strong>Mesa Branch:</strong> <a href="https://github.com/mwilczy/mesa"><code>github.com/mwilczy/mesa</code></a></li>
+</ul>
+<p>Here is the exact Meson configuration I used to build a pure Vulkan+Zink stack:</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">meson setup build <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    -D <span class="nv">buildtype</span><span class="o">=</span>release <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    -D <span class="nv">platforms</span><span class="o">=</span>x11,wayland <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    -D vulkan-drivers<span class="o">=</span>imagination <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    -D gallium-drivers<span class="o">=</span>zink <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    -D <span class="nv">glx</span><span class="o">=</span>disabled <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    -D <span class="nv">gles1</span><span class="o">=</span>disabled <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    -D <span class="nv">gles2</span><span class="o">=</span>enabled <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    -D <span class="nv">egl</span><span class="o">=</span>enabled <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    -D <span class="nv">tools</span><span class="o">=</span>imagination <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>    -D <span class="nv">glvnd</span><span class="o">=</span>disabled</span></span></code></pre></div>
+<hr>
+<h2 id="part-4-the-result">Part 4: The Result<a hidden class="anchor" aria-hidden="true" href="#part-4-the-result">#</a></h2>
+<p>With the kernel compiled (including the pending display patches) and the Mesa stack built, we can finally run accelerated 3D workloads.</p>
+<h3 id="the-secret-sauce-environment-variables">The &ldquo;Secret Sauce&rdquo; (Environment Variables)<a hidden class="anchor" aria-hidden="true" href="#the-secret-sauce-environment-variables">#</a></h3>
+<p>Because the driver is still in active development and not yet fully conformant, we need to pass a few flags to convince Mesa to run.</p>
+<p>The most important one is <code>PVR_I_WANT_A_BROKEN_VULKAN_DRIVER=1</code>. Without this, the driver safeguards would prevent loading. We also force the use of the Zink driver and explicitly select our device:</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="nb">export</span> <span class="nv">PVR_I_WANT_A_BROKEN_VULKAN_DRIVER</span><span class="o">=</span><span class="m">1</span>
+</span></span><span class="line"><span class="cl"><span class="nb">export</span> <span class="nv">GALLIUM_DRIVER</span><span class="o">=</span>zink
+</span></span><span class="line"><span class="cl"><span class="nb">export</span> <span class="nv">MESA_VK_DEVICE_SELECT</span><span class="o">=</span>1010:36104182!</span></span></code></pre></div>
+<h3 id="the-benchmark">The Benchmark<a hidden class="anchor" aria-hidden="true" href="#the-benchmark">#</a></h3>
+<p>I started a Weston compositor session using the DRM backend:</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">weston --backend<span class="o">=</span>drm-backend.so --continue-without-input <span class="p">&amp;</span></span></span></code></pre></div>
+<p>And then, the moment of truth - running <code>glmark2-es2-wayland</code>:</p>
+<p><img alt="glmark2 running on RISC-V" loading="lazy" src="/images/glmark.png">
+<em>Above: glmark2 running on the Lichee Pi 4A.</em></p>
+<p>Here is the output, confirming we are running fully accelerated on the PowerVR GPU via Zink:</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">root@revyos-lpi4a:~/test_mesa/Vulkan/build4/bin# glmark2-es2-wayland
+</span></span><span class="line"><span class="cl">MESA: warning: Core count fetching is unimplemented. Setting 1 for now.
+</span></span><span class="line"><span class="cl">WARNING: powervr is not a conformant Vulkan implementation, testing use only.
+</span></span><span class="line"><span class="cl">=======================================================
+</span></span><span class="line"><span class="cl">    glmark2 2023.01
+</span></span><span class="line"><span class="cl">=======================================================
+</span></span><span class="line"><span class="cl">    OpenGL Information
+</span></span><span class="line"><span class="cl">    GL_VENDOR:      Mesa
+</span></span><span class="line"><span class="cl">    GL_RENDERER:    zink Vulkan 1.2(PowerVR B-Series BXM-4-64 MC1 (IMAGINATION_OPEN_SOURCE_MESA))
+</span></span><span class="line"><span class="cl">    GL_VERSION:     OpenGL ES 2.0 Mesa 26.0.0-devel (git-601d20e81e)
+</span></span><span class="line"><span class="cl">    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=24 stencil=0 samples=0
+</span></span><span class="line"><span class="cl">    Surface Size:   800x600 windowed
+</span></span><span class="line"><span class="cl">=======================================================
+</span></span><span class="line"><span class="cl">[build] use-vbo=false:[  510.861554] verisilicon-dc ffef600000.display: swiotlb buffer is full (sz: 524288 bytes), total 32768 (slots), used 4 (slots)
+</span></span><span class="line"><span class="cl">[  510.887018] verisilicon-dc ffef600000.display: swiotlb buffer is full (sz: 1847296 bytes), total 32768 (slots), used 36 (slots)
+</span></span><span class="line"><span class="cl">[  510.900771] verisilicon-dc ffef600000.display: swiotlb buffer is full (sz: 1847296 bytes), total 32768 (slots), used 36 (slots)
+</span></span><span class="line"><span class="cl">[  510.923956] verisilicon-dc ffef600000.display: swiotlb buffer is full (sz: 1921024 bytes), total 32768 (slots), used 0 (slots)
+</span></span><span class="line"><span class="cl">[  510.954656] verisilicon-dc ffef600000.display: swiotlb buffer is full (sz: 458752 bytes), total 32768 (slots), used 0 (slots)
+</span></span><span class="line"><span class="cl">[  510.966931] verisilicon-dc ffef600000.display: swiotlb buffer is full (sz: 458752 bytes), total 32768 (slots), used 0 (slots)
+</span></span><span class="line"><span class="cl">[  511.038586] verisilicon-dc ffef600000.display: swiotlb buffer is full (sz: 1921024 bytes), total 32768 (slots), used 0 (slots)
+</span></span><span class="line"><span class="cl">[  512.165193] verisilicon-dc ffef600000.display: swiotlb buffer is full (sz: 1900544 bytes), total 32768 (slots), used 10 (slots)
+</span></span><span class="line"><span class="cl">[  512.187871] verisilicon-dc ffef600000.display: swiotlb buffer is full (sz: 1900544 bytes), total 32768 (slots), used 10 (slots)
+</span></span><span class="line"><span class="cl">[  512.209524] verisilicon-dc ffef600000.display: swiotlb buffer is full (sz: 745472 bytes), total 32768 (slots), used 0 (slots)
+</span></span><span class="line"><span class="cl"> FPS: 67 FrameTime: 14.960 ms
+</span></span><span class="line"><span class="cl">[build] use-vbo=true: FPS: 98 FrameTime: 10.252 ms
+</span></span><span class="line"><span class="cl">[texture] texture-filter=nearest: FPS: 97 FrameTime: 10.332 ms
+</span></span><span class="line"><span class="cl">[texture] texture-filter=linear: FPS: 93 FrameTime: 10.868 ms
+</span></span><span class="line"><span class="cl">[texture] texture-filter=mipmap: FPS: 101 FrameTime: 9.957 ms
+</span></span><span class="line"><span class="cl">[shading] shading=gouraud: FPS: 93 FrameTime: 10.851 ms
+</span></span><span class="line"><span class="cl">[shading] shading=blinn-phong-inf: FPS: 98 FrameTime: 10.274 ms
+</span></span><span class="line"><span class="cl">[shading] shading=phong: FPS: 97 FrameTime: 10.356 ms
+</span></span><span class="line"><span class="cl">[shading] shading=cel: FPS: 91 FrameTime: 11.086 ms
+</span></span><span class="line"><span class="cl">[bump] bump-render=high-poly: FPS: 75 FrameTime: 13.404 ms
+</span></span><span class="line"><span class="cl">[bump] bump-render=normals: FPS: 97 FrameTime: 10.356 ms
+</span></span><span class="line"><span class="cl">[bump] bump-render=height: FPS: 88 FrameTime: 11.449 ms
+</span></span><span class="line"><span class="cl">[effect2d] kernel=0,1,0;1,-4,1;0,1,0;: FPS: 94 FrameTime: 10.646 ms
+</span></span><span class="line"><span class="cl">[effect2d] kernel=1,1,1,1,1;1,1,1,1,1;1,1,1,1,1;: FPS: 57 FrameTime: 17.590 ms
+</span></span><span class="line"><span class="cl">[pulsar] light=false:quads=5:texture=false: FPS: 92 FrameTime: 10.953 ms
+</span></span><span class="line"><span class="cl">[desktop] blur-radius=5:effect=blur:passes=1:separable=true:windows=4: FPS: 10 FrameTime: 105.957 ms
+</span></span><span class="line"><span class="cl">[desktop] effect=shadow:windows=4: FPS: 37 FrameTime: 27.465 ms
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">...</span></span></code></pre></div>
+<p>We have successfully turned &ldquo;dark silicon&rdquo; into a modern, Vulkan capable graphics platform.</p>
+<hr>
+<h2 id="acknowledgements">Acknowledgements<a hidden class="anchor" aria-hidden="true" href="#acknowledgements">#</a></h2>
+<p>Bringing a new GPU architecture to life in the mainline kernel is never a solo effort. It requires navigating complex subsystems - from power domains to clocks and relies heavily on the patience and expertise of subsystem maintainers.</p>
+<p>This work went through many iterations, and the code is significantly better thanks to the rigorous feedback from the community.</p>
+<p>A huge thank you to everyone who helped review the code, suggested architectural improvements, and tested the stack:</p>
+<ul>
+<li><strong>Marek Szyprowski</strong> - For the guidance and mentorship throughout the upstreaming process.</li>
+<li><strong>Drew Fustini</strong> - For his long standing work maintaining the TH1520 platform.</li>
+<li><strong>Krzysztof Kozłowski</strong> - For ensuring the Device Tree bindings were strictly compliant.</li>
+<li><strong>Ulf Hansson</strong> - For his guidance on the AON power domains and for suggesting the use of the Power Sequencing framework, which simplified the architecture significantly.</li>
+<li><strong>Bartosz Gołaszewski</strong> -  For creating the Power Sequencing subsystem and helping merge the TH1520 driver.</li>
+<li><strong>Matt Coster</strong> - For reviewing the driver changes and helping navigate the PowerVR internals.</li>
+<li><strong>Stephen Boyd</strong>  - For the feedback on the video output clock controller.</li>
+<li><strong>Philipp Zabel</strong> - For reviewing the reset controller implementation.</li>
+<li><strong>Icenowy Zheng</strong> - For the incredible work on the display controller and Mesa/Zink integration.</li>
+<li><strong>Jassi Brar</strong> - For reviewing the mailbox driver implementation.</li>
+<li><strong>Conor Dooley</strong> - For reviewing Device Tree patches.</li>
+</ul>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+  </footer><script src="https://giscus.app/client.js"
+        data-repo="mwilczy/blog-kernel"
+        data-repo-id="R_kgDOQS2PaA"
+        data-category="Announcements"
+        data-category-id="DIC_kwDOQS2PaM4Cxpvo"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="bottom"
+        data-theme="preferred_color_scheme"
+        data-lang="en"
+        crossorigin="anonymous"
+        async>
+</script>
+
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2025 <a href="http://localhost:1313/">Linux Kernel Blog</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>

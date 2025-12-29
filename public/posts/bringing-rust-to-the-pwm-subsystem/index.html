@@ -155,7 +155,7 @@ If you peek at the TH1520 driver, you&rsquo;ll spot an <code>unsafe</code> block
 <p>First, we define a struct to hold our driver&rsquo;s state. This is where we&rsquo;ll keep our memory-mapped registers (<code>iomem</code>) and our clock (<code>clk</code>).</p>
 <p>Before we look at the code, we need to talk about <code>Pin</code>. In kernel drivers, we often build complex data structures. Sometimes, these structures must <em>never move in memory</em> once they are created (for example, if they are involved in async operations or have internal pointers to their own fields).</p>
 <p>If we just moved such a struct, those internal pointers would become invalid and point to garbage.</p>
-<p><code>Pin</code> is a mechanism in Rust that &ldquo;pins&rdquo; data to its location in memory. It&rsquo;s a guarantee to the compiler that the data&rsquo;s address will not change. This is why you&rsquo;ll see <code>#[pin_data(PinnedDrop)]</code> and <code>#[pin]</code> in the struct, and why our <code>probe</code> function returns <code>impl PinInit</code> - it&rsquo;s all part of this safety-first &ldquo;pinning&rdquo; initialization.</p>
+<p><code>Pin</code> is a mechanism in Rust that &ldquo;pins&rdquo; data to its location in memory. It&rsquo;s a guarantee to the compiler that the data&rsquo;s address will not change. This is why you&rsquo;ll see <code>#[pin_data(PinnedDrop)]</code> and <code>#[pin]</code> in the struct, and why our <code>probe</code> function returns <code>impl PinInit</code> - it&rsquo;s all part of this safety first &ldquo;pinning&rdquo; initialization.</p>
 <div class="highlight"><div class="chroma">
 <table class="lntable"><tr><td class="lntd">
 <pre tabindex="0" class="chroma"><code><span class="lnt"> 1
